@@ -72,12 +72,12 @@ jobs:
 
       - name: Restore ccache
         uses: actions/cache@v3
+        id: restore-ccache
         with:
           path: /home/runner/.ccache
-          key: ccache-${{ runner.os }}-${{ hashFiles('kernel_workspace/kernel_platform/common/build.config.gki') }}
+          key: ccache-${{ runner.os }}-${{ hashFiles('kernel_workspace/kernel_platform/common/build.config.gki', 'kernel_workspace/kernel_platform/common/Makefile') }}
           restore-keys: |
             ccache-${{ runner.os }}-
-            ccache-
 
       - name: Install repo tool
         run: |
@@ -323,7 +323,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: /home/runner/.ccache
-          key: ccache-${{ runner.os }}-${{ hashFiles('kernel_workspace/kernel_platform/common/build.config.gki') }}
+          key: ${{ steps.restore-ccache.outputs.cache-primary-key }}
       
       - name: Apply Linux Patch
         run: |

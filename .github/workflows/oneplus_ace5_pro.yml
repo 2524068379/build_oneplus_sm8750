@@ -33,11 +33,13 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
+      CCACHE_COMPILERCHECK: "content"
       CCACHE_NOHASHDIR: "true"
       CCACHE_HARDLINK: "true"
-      CCACHE_DIR: /home/runner/.ccache  
+      CCACHE_DIR: /home/runner/.ccache
       CCACHE_MAXSIZE: 8G
+      CCACHE_COMPRESS: "true"
+      CCACHE_COMPRESSLEVEL: "6"
     steps:
       - name: Maximize build space
         uses: easimon/maximize-build-space@master
@@ -51,33 +53,34 @@ jobs:
           
       - name: Configure Git
         run: |
-         git config --global user.name "Futaba"
-         git config --global user.email "3199167602@qq.com"
-      - name: Install dependencies if not already present
+         git config --global user.name "Q1udaoyu"
+         git config --global user.email "sucisama2888@gmail.com"
+      - name: Install dependencies
         run: |
           sudo apt update
-          # 检查并安装 python3
-          if ! command -v python3 &> /dev/null; then
-            sudo apt install -y python3
-          fi
-          # 检查并安装 git
-          if ! command -v git &> /dev/null; then
-            sudo apt install -y git
-          fi
-          # 检查并安装 curl
-          if ! command -v curl &> /dev/null; then
-            sudo apt install -y curl
-          fi
-          # 检查并安装 ccache
-          if ! command -v ccache &> /dev/null; then
-            sudo apt install -y ccache
-          fi
+          # 检查并安装必要组件
+          for pkg in python3 git curl ccache; do
+            if ! command -v $pkg &> /dev/null; then
+              sudo apt install -y $pkg
+            fi
+          done
+          sudo ln -s /usr/bin/ccache /usr/local/bin/ccache-clang
+          sudo ln -s /usr/bin/ccache /usr/local/bin/ccache-clang++
+
+      - name: Configure ccache
+        run: |
+          ccache --clear
+          ccache --set-config=max_size=8G
+          ccache --set-config=compression=true
+          ccache --set-config=compression_level=6
+          ccache -s
 
       - name: Restore ccache
         uses: actions/cache@v3
+        id: restore-ccache
         with:
           path: /home/runner/.ccache
-          key: ccache-${{ runner.os }}-${{ github.ref }}
+          key: ccache-${{ runner.os }}-${{ hashFiles('kernel_workspace/kernel_platform/common/build.config.gki', 'kernel_workspace/kernel_platform/common/Makefile') }}
           restore-keys: |
             ccache-${{ runner.os }}-
 
@@ -286,13 +289,38 @@ jobs:
 
       - name: Build Kernel
         run: |
+          export PATH="/usr/lib/ccache:$PATH"
+          echo "=== CCACHE BEFORE BUILD ==="
+          ccache -s
+          
           export KBUILD_BUILD_TIMESTAMP="${{ github.event.inputs.KERNEL_TIME }}"
           export PATH="$GITHUB_WORKSPACE/kernel_workspace/kernel_platform/prebuilts/clang/host/linux-x86/clang-r510928/bin:$PATH"
-          export PATH="/usr/lib/ccache:$PATH"
           sudo apt install libelf-dev
           cd kernel_workspace/kernel_platform/common
-          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC=clang RUSTC=../../prebuilts/rust/linux-x86/1.73.0b/bin/rustc PAHOLE=../../prebuilts/kernel-build-tools/linux-x86/bin/pahole LD=ld.lld HOSTLD=ld.lld O=out KCFLAGS+=-O2 gki_defconfig
-          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC=clang RUSTC=../../prebuilts/rust/linux-x86/1.73.0b/bin/rustc PAHOLE=../../prebuilts/kernel-build-tools/linux-x86/bin/pahole LD=ld.lld HOSTLD=ld.lld O=out KCFLAGS+=-O2 Image
+          
+          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- \
+            CC="ccache clang" \
+            RUSTC=../../prebuilts/rust/linux-x86/1.73.0b/bin/rustc \
+            PAHOLE=../../prebuilts/kernel-build-tools/linux-x86/bin/pahole \
+            LD=ld.lld HOSTLD=ld.lld O=out KCFLAGS+=-O2 gki_defconfig
+            
+          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- \
+            CC="ccache clang" \
+            RUSTC=../../prebuilts/rust/linux-x86/1.73.0b/bin/rustc \
+            PAHOLE=../../prebuilts/kernel-build-tools/linux-x86/bin/pahole \
+            LD=ld.lld HOSTLD=ld.lld O=out KCFLAGS+=-O2 Image
+          
+          echo "=== CCACHE AFTER BUILD ==="
+          ccache -s
+          echo "Cache hit rate: $(ccache -s | grep 'cache hit rate')"
+
+      - name: Save ccache
+        if: always()
+        uses: actions/cache@v3
+        with:
+          path: /home/runner/.ccache
+          key: ${{ steps.restore-ccache.outputs.cache-primary-key }}
+          
       - name: Apply Linux Patch
         run: |
          cd kernel_workspace/kernel_platform/common/out/arch/arm64/boot
