@@ -25,6 +25,7 @@ on:
        required: false
        default: true
        type: boolean
+
        
 
 
@@ -352,5 +353,5 @@ jobs:
       - name: Upload AnyKernel3
         uses: actions/upload-artifact@v4
         with:
-         name: AnyKernel3_${{ env.KSUVER }}_oneplus_13_SuKiSu
-         path: ./AnyKernel3/*
+          name: AnyKernel3_${{ env.KSUVER }}_oneplus_13_SuKiSU_${{ inputs.parent_run_id }}
+          path: ./AnyKernel3/*

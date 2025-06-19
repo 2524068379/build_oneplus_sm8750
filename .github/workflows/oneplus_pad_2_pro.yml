@@ -5,7 +5,7 @@ on:
       KERNEL_SUFFIX:
         description: '内核名称修改(可改中文和emoji)'
         required: true
-        default: '-TG@Q1udaoyu'
+        default: '-TG@qdykernel'
       KERNEL_TIME:
        description: "内核构建日期更改(默认为原厂)"
        required: true
@@ -25,8 +25,6 @@ on:
        required: false
        default: true
        type: boolean
-      
-       
 
 
 jobs:
@@ -309,5 +307,5 @@ jobs:
       - name: Upload AnyKernel3
         uses: actions/upload-artifact@v4
         with:
-         name: AnyKernel3_${{ env.KSUVER }}_oneplus_pad_2_pro_SuKiSU
+         name: AnyKernel3_${{ env.KSUVER }}_oneplus_pad_2_pro_SuKiSU_${{ inputs.parent_run_id }}
          path: ./AnyKernel3/*
